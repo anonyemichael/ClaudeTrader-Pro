@@ -62,11 +62,6 @@ function checkOnboarding() {
     required = ["BITGET_API_KEY", "BITGET_SECRET_KEY", "BITGET_PASSPHRASE"];
   }
 
-  if (!existsSync(".env")) {
-    console.log("\n⚠️  No .env file found — copy .env.example to .env and fill in your credentials.\n");
-    process.exit(0);
-  }
-
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     console.log(`\n⚠️  Missing credentials in .env: ${missing.join(", ")}`);
