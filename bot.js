@@ -1,95 +1,87 @@
 /**
  * Claude + TradingView MCP — Automated Trading Bot
  *
- * Cloud mode: runs on Railway on a schedule. Pulls candle data direct from
- * Binance (free, no auth), calculates all indicators, runs safety check,
- * executes via BitGet if everything lines up.
+ * Dual-mode: crypto (BitGet or Binance) or forex (OANDA).
+ * Switch by setting MARKET_TYPE=crypto or MARKET_TYPE=forex in .env.
  *
- * Local mode: run manually — node bot.js
- * Cloud mode: deploy to Railway, set env vars, Railway triggers on cron schedule
+ * Local mode: node bot.js
+ * Cloud mode: deploy to Railway/Hostinger, set env vars, trigger on cron schedule
  */
 
 import "dotenv/config";
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from "fs";
 import crypto from "crypto";
-import { execSync } from "child_process";
 
-// ─── Onboarding ───────────────────────────────────────────────────────────────
-
-function checkOnboarding() {
-  const required = ["BITGET_API_KEY", "BITGET_SECRET_KEY", "BITGET_PASSPHRASE"];
-  const missing = required.filter((k) => !process.env[k]);
-
-  if (!existsSync(".env")) {
-    console.log(
-      "\n⚠️  No .env file found — opening it for you to fill in...\n",
-    );
-    writeFileSync(
-      ".env",
-      [
-        "# BitGet credentials",
-        "BITGET_API_KEY=",
-        "BITGET_SECRET_KEY=",
-        "BITGET_PASSPHRASE=",
-        "",
-        "# Trading config",
-        "PORTFOLIO_VALUE_USD=1000",
-        "MAX_TRADE_SIZE_USD=100",
-        "MAX_TRADES_PER_DAY=3",
-        "PAPER_TRADING=true",
-        "SYMBOL=BTCUSDT",
-        "TIMEFRAME=4H",
-      ].join("\n") + "\n",
-    );
-    try {
-      execSync("open .env");
-    } catch {}
-    console.log(
-      "Fill in your BitGet credentials in .env then re-run: node bot.js\n",
-    );
-    process.exit(0);
-  }
-
-  if (missing.length > 0) {
-    console.log(`\n⚠️  Missing credentials in .env: ${missing.join(", ")}`);
-    console.log("Opening .env for you now...\n");
-    try {
-      execSync("open .env");
-    } catch {}
-    console.log("Add the missing values then re-run: node bot.js\n");
-    process.exit(0);
-  }
-
-  // Always print the CSV location so users know where to find their trade log
-  const csvPath = new URL("trades.csv", import.meta.url).pathname;
-  console.log(`\n📄 Trade log: ${csvPath}`);
-  console.log(
-    `   Open in Google Sheets or Excel any time — or tell Claude to move it:\n` +
-      `   "Move my trades.csv to ~/Desktop" or "Move it to my Documents folder"\n`,
-  );
-}
-
-// ─── Config ────────────────────────────────────────────────────────────────
+// ─── Config ──────────────────────────────────────────────────────────────────
 
 const CONFIG = {
+  marketType: process.env.MARKET_TYPE || "crypto",   // "crypto" or "forex"
+  exchange: process.env.EXCHANGE || "bybit",            // "bybit", "bitget", or "binance" (crypto only)
   symbol: process.env.SYMBOL || "BTCUSDT",
   timeframe: process.env.TIMEFRAME || "4H",
   portfolioValue: parseFloat(process.env.PORTFOLIO_VALUE_USD || "1000"),
-  maxTradeSizeUSD: parseFloat(process.env.MAX_TRADE_SIZE_USD || "100"),
+  maxTradeSizeUSD: parseFloat(process.env.MAX_TRADE_SIZE_USD || "50"),
   maxTradesPerDay: parseInt(process.env.MAX_TRADES_PER_DAY || "3"),
   paperTrading: process.env.PAPER_TRADING !== "false",
   tradeMode: process.env.TRADE_MODE || "spot",
+  bybit: {
+    apiKey: process.env.BYBIT_API_KEY,
+    secretKey: process.env.BYBIT_SECRET_KEY,
+  },
   bitget: {
     apiKey: process.env.BITGET_API_KEY,
     secretKey: process.env.BITGET_SECRET_KEY,
     passphrase: process.env.BITGET_PASSPHRASE,
     baseUrl: process.env.BITGET_BASE_URL || "https://api.bitget.com",
   },
+  binance: {
+    apiKey: process.env.BINANCE_API_KEY,
+    secretKey: process.env.BINANCE_SECRET_KEY,
+  },
+  oanda: {
+    apiKey: process.env.OANDA_API_KEY,
+    accountId: process.env.OANDA_ACCOUNT_ID,
+    practice: process.env.OANDA_PRACTICE !== "false",
+  },
 };
 
 const LOG_FILE = "safety-check-log.json";
 
-// ─── Logging ────────────────────────────────────────────────────────────────
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+
+function checkOnboarding() {
+  let required = [];
+
+  if (CONFIG.marketType === "forex") {
+    required = ["OANDA_API_KEY", "OANDA_ACCOUNT_ID"];
+  } else if (CONFIG.exchange === "bybit") {
+    required = ["BYBIT_API_KEY", "BYBIT_SECRET_KEY"];
+  } else if (CONFIG.exchange === "binance") {
+    required = ["BINANCE_API_KEY", "BINANCE_SECRET_KEY"];
+  } else {
+    required = ["BITGET_API_KEY", "BITGET_SECRET_KEY", "BITGET_PASSPHRASE"];
+  }
+
+  if (!existsSync(".env")) {
+    console.log("\n⚠️  No .env file found — copy .env.example to .env and fill in your credentials.\n");
+    process.exit(0);
+  }
+
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    console.log(`\n⚠️  Missing credentials in .env: ${missing.join(", ")}`);
+    console.log("Add the missing values then re-run: node bot.js\n");
+    process.exit(0);
+  }
+
+  const csvPath = new URL("trades.csv", import.meta.url).pathname;
+  console.log(`\n📄 Trade log: ${csvPath}`);
+  console.log(
+    `   Open in Google Sheets or Excel any time.\n`
+  );
+}
+
+// ─── Logging ─────────────────────────────────────────────────────────────────
 
 function loadLog() {
   if (!existsSync(LOG_FILE)) return { trades: [] };
@@ -103,32 +95,30 @@ function saveLog(log) {
 function countTodaysTrades(log) {
   const today = new Date().toISOString().slice(0, 10);
   return log.trades.filter(
-    (t) => t.timestamp.startsWith(today) && t.orderPlaced,
+    (t) => t.timestamp.startsWith(today) && t.orderPlaced
   ).length;
 }
 
-// ─── Market Data (Binance public API — free, no auth) ───────────────────────
+// ─── Market Data ──────────────────────────────────────────────────────────────
 
-async function fetchCandles(symbol, interval, limit = 100) {
-  // Map our timeframe format to Binance interval format
+async function fetchCandles(symbol, interval, limit = 500) {
+  if (CONFIG.marketType === "forex") {
+    return fetchOandaCandles(symbol, interval, limit);
+  }
+  return fetchBinanceCandles(symbol, interval, limit);
+}
+
+// Binance public API — free, no auth needed
+async function fetchBinanceCandles(symbol, interval, limit) {
   const intervalMap = {
-    "1m": "1m",
-    "3m": "3m",
-    "5m": "5m",
-    "15m": "15m",
-    "30m": "30m",
-    "1H": "1h",
-    "4H": "4h",
-    "1D": "1d",
-    "1W": "1w",
+    "1m": "1m", "3m": "3m", "5m": "5m", "15m": "15m", "30m": "30m",
+    "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w",
   };
   const binanceInterval = intervalMap[interval] || "1m";
-
   const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${binanceInterval}&limit=${limit}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Binance API error: ${res.status}`);
   const data = await res.json();
-
   return data.map((k) => ({
     time: k[0],
     open: parseFloat(k[1]),
@@ -139,7 +129,42 @@ async function fetchCandles(symbol, interval, limit = 100) {
   }));
 }
 
-// ─── Indicator Calculations ──────────────────────────────────────────────────
+// OANDA candles — requires API key (practice or live)
+async function fetchOandaCandles(instrument, interval, limit) {
+  const baseUrl = CONFIG.oanda.practice
+    ? "https://api-fxpractice.oanda.com"
+    : "https://api-fxtrade.oanda.com";
+
+  const granularity = oandaGranularity(interval);
+  const url = `${baseUrl}/v3/instruments/${instrument}/candles?count=${limit}&granularity=${granularity}&price=M`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${CONFIG.oanda.apiKey}` },
+  });
+  if (!res.ok) throw new Error(`OANDA API error: ${res.status}`);
+  const data = await res.json();
+
+  return data.candles
+    .filter((c) => c.complete)
+    .map((c) => ({
+      time: new Date(c.time).getTime(),
+      open: parseFloat(c.mid.o),
+      high: parseFloat(c.mid.h),
+      low: parseFloat(c.mid.l),
+      close: parseFloat(c.mid.c),
+      volume: c.volume,
+    }));
+}
+
+function oandaGranularity(interval) {
+  const map = {
+    "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30",
+    "1H": "H1", "4H": "H4", "1D": "D", "1W": "W",
+  };
+  return map[interval] || "H4";
+}
+
+// ─── Indicator Calculations ───────────────────────────────────────────────────
 
 function calcEMA(closes, period) {
   const multiplier = 2 / (period + 1);
@@ -150,135 +175,156 @@ function calcEMA(closes, period) {
   return ema;
 }
 
-function calcRSI(closes, period = 14) {
-  if (closes.length < period + 1) return null;
-  let gains = 0,
-    losses = 0;
-  for (let i = closes.length - period; i < closes.length; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff > 0) gains += diff;
-    else losses -= diff;
+// Swing highs and lows: a swing high/low must be the extreme within `lookback` candles on each side
+function detectSwingPoints(candles, lookback = 3) {
+  const swingHighs = [];
+  const swingLows = [];
+  for (let i = lookback; i < candles.length - lookback; i++) {
+    const c = candles[i];
+    const leftHighs = candles.slice(i - lookback, i).map((x) => x.high);
+    const rightHighs = candles.slice(i + 1, i + lookback + 1).map((x) => x.high);
+    const leftLows = candles.slice(i - lookback, i).map((x) => x.low);
+    const rightLows = candles.slice(i + 1, i + lookback + 1).map((x) => x.low);
+    if (c.high > Math.max(...leftHighs) && c.high > Math.max(...rightHighs)) {
+      swingHighs.push({ index: i, price: c.high, time: c.time });
+    }
+    if (c.low < Math.min(...leftLows) && c.low < Math.min(...rightLows)) {
+      swingLows.push({ index: i, price: c.low, time: c.time });
+    }
   }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
+  return { swingHighs, swingLows };
 }
 
-// VWAP — session-based, resets at midnight UTC
-function calcVWAP(candles) {
-  const midnightUTC = new Date();
-  midnightUTC.setUTCHours(0, 0, 0, 0);
-  const sessionCandles = candles.filter((c) => c.time >= midnightUTC.getTime());
-  if (sessionCandles.length === 0) return null;
-  const cumTPV = sessionCandles.reduce(
-    (sum, c) => sum + ((c.high + c.low + c.close) / 3) * c.volume,
-    0,
-  );
-  const cumVol = sessionCandles.reduce((sum, c) => sum + c.volume, 0);
-  return cumVol === 0 ? null : cumTPV / cumVol;
+// Market structure: HH+HL = bullish, LH+LL = bearish, else neutral
+function analyzeMarketStructure(swingHighs, swingLows) {
+  if (swingHighs.length < 2 || swingLows.length < 2) {
+    return { bias: "neutral", reason: "Not enough swing points to determine structure" };
+  }
+  const [prevHigh, lastHigh] = swingHighs.slice(-2);
+  const [prevLow, lastLow] = swingLows.slice(-2);
+  const higherHighs = lastHigh.price > prevHigh.price;
+  const higherLows = lastLow.price > prevLow.price;
+  const lowerHighs = lastHigh.price < prevHigh.price;
+  const lowerLows = lastLow.price < prevLow.price;
+  if (higherHighs && higherLows) {
+    return {
+      bias: "bullish",
+      reason: `HH ${lastHigh.price.toFixed(2)} > ${prevHigh.price.toFixed(2)}, HL ${lastLow.price.toFixed(2)} > ${prevLow.price.toFixed(2)}`,
+      lastSwingHigh: lastHigh, lastSwingLow: lastLow,
+      prevSwingHigh: prevHigh, prevSwingLow: prevLow,
+    };
+  }
+  if (lowerHighs && lowerLows) {
+    return {
+      bias: "bearish",
+      reason: `LH ${lastHigh.price.toFixed(2)} < ${prevHigh.price.toFixed(2)}, LL ${lastLow.price.toFixed(2)} < ${prevLow.price.toFixed(2)}`,
+      lastSwingHigh: lastHigh, lastSwingLow: lastLow,
+      prevSwingHigh: prevHigh, prevSwingLow: prevLow,
+    };
+  }
+  return { bias: "neutral", reason: "Mixed structure — no clear HH/HL or LH/LL" };
 }
 
-// ─── Safety Check ───────────────────────────────────────────────────────────
+// Break & retest: price broke a key level then pulled back within 0.5% of it
+function detectBreakAndRetest(candles, structure) {
+  const recent = candles.slice(-10);
+  const current = candles[candles.length - 1];
+  const tolerance = 0.005;
+  if (structure.bias === "bullish" && structure.prevSwingHigh) {
+    const level = structure.prevSwingHigh.price;
+    const broke = recent.some((c) => c.close > level);
+    const retesting = Math.abs(current.close - level) / level < tolerance;
+    return { detected: broke && retesting, level };
+  }
+  if (structure.bias === "bearish" && structure.prevSwingLow) {
+    const level = structure.prevSwingLow.price;
+    const broke = recent.some((c) => c.close < level);
+    const retesting = Math.abs(current.close - level) / level < tolerance;
+    return { detected: broke && retesting, level };
+  }
+  return { detected: false, level: null };
+}
 
-function runSafetyCheck(price, ema8, vwap, rsi3, rules) {
+// Candlestick confirmation: bullish/bearish engulfing or pin bar
+function detectCandleSignal(current, prev) {
+  const currBody = Math.abs(current.close - current.open);
+  const currRange = current.high - current.low;
+  const isBullish = current.close > current.open;
+  const isBearish = current.close < current.open;
+  const lowerWick = Math.min(current.open, current.close) - current.low;
+  const upperWick = current.high - Math.max(current.open, current.close);
+  const bullishEngulfing = isBullish &&
+    current.open <= Math.min(prev.open, prev.close) &&
+    current.close >= Math.max(prev.open, prev.close);
+  const bearishEngulfing = isBearish &&
+    current.open >= Math.max(prev.open, prev.close) &&
+    current.close <= Math.min(prev.open, prev.close);
+  const bullishPin = currRange > 0 && lowerWick >= 2 * currBody && lowerWick > upperWick;
+  const bearishPin = currRange > 0 && upperWick >= 2 * currBody && upperWick > lowerWick;
+  return {
+    bullish: bullishEngulfing || bullishPin,
+    bearish: bearishEngulfing || bearishPin,
+    type: bullishEngulfing ? "bullish engulfing" : bullishPin ? "bullish pin bar" :
+          bearishEngulfing ? "bearish engulfing" : bearishPin ? "bearish pin bar" : "no signal",
+  };
+}
+
+// ─── Safety Check ─────────────────────────────────────────────────────────────
+
+function runSafetyCheck(price, ema50, structure, candleSignal, breakRetest) {
   const results = [];
 
   const check = (label, required, actual, pass) => {
     results.push({ label, required, actual, pass });
-    const icon = pass ? "✅" : "🚫";
-    console.log(`  ${icon} ${label}`);
+    console.log(`  ${pass ? "✅" : "🚫"} ${label}`);
     console.log(`     Required: ${required} | Actual: ${actual}`);
   };
 
-  console.log("\n── Safety Check ─────────────────────────────────────────\n");
+  console.log("\n── Safety Check (@jacktradessss Price Action) ────────────\n");
+  console.log(`  Market Structure: ${structure.bias.toUpperCase()} — ${structure.reason}\n`);
 
-  // Determine bias first
-  const bullishBias = price > vwap && price > ema8;
-  const bearishBias = price < vwap && price < ema8;
-
-  if (bullishBias) {
-    console.log("  Bias: BULLISH — checking long entry conditions\n");
-
-    // 1. Price above VWAP
+  if (structure.bias === "bullish") {
+    console.log("  Checking LONG entry conditions...\n");
+    check("Bullish market structure (HH + HL)", "HH and HL confirmed", structure.reason, true);
+    check("Price above EMA(50) — trend confluence", `> ${ema50.toFixed(2)}`, price.toFixed(2), price > ema50);
     check(
-      "Price above VWAP (buyers in control)",
-      `> ${vwap.toFixed(2)}`,
-      price.toFixed(2),
-      price > vwap,
+      "Break and retest of key swing level",
+      "Price within 0.5% of broken swing high",
+      breakRetest.detected ? `Retesting ${breakRetest.level?.toFixed(2)}` : "No retest detected",
+      breakRetest.detected
     );
-
-    // 2. Price above EMA(8)
     check(
-      "Price above EMA(8) (uptrend confirmed)",
-      `> ${ema8.toFixed(2)}`,
-      price.toFixed(2),
-      price > ema8,
+      "Candlestick confirmation at retest",
+      "Bullish engulfing or pin bar",
+      candleSignal.type,
+      candleSignal.bullish
     );
-
-    // 3. RSI(3) pullback
+  } else if (structure.bias === "bearish") {
+    console.log("  Checking SHORT entry conditions...\n");
+    check("Bearish market structure (LH + LL)", "LH and LL confirmed", structure.reason, true);
+    check("Price below EMA(50) — trend confluence", `< ${ema50.toFixed(2)}`, price.toFixed(2), price < ema50);
     check(
-      "RSI(3) below 30 (snap-back setup in uptrend)",
-      "< 30",
-      rsi3.toFixed(2),
-      rsi3 < 30,
+      "Break and retest of key swing level",
+      "Price within 0.5% of broken swing low",
+      breakRetest.detected ? `Retesting ${breakRetest.level?.toFixed(2)}` : "No retest detected",
+      breakRetest.detected
     );
-
-    // 4. Not overextended from VWAP
-    const distFromVWAP = Math.abs((price - vwap) / vwap) * 100;
     check(
-      "Price within 1.5% of VWAP (not overextended)",
-      "< 1.5%",
-      `${distFromVWAP.toFixed(2)}%`,
-      distFromVWAP < 1.5,
-    );
-  } else if (bearishBias) {
-    console.log("  Bias: BEARISH — checking short entry conditions\n");
-
-    check(
-      "Price below VWAP (sellers in control)",
-      `< ${vwap.toFixed(2)}`,
-      price.toFixed(2),
-      price < vwap,
-    );
-
-    check(
-      "Price below EMA(8) (downtrend confirmed)",
-      `< ${ema8.toFixed(2)}`,
-      price.toFixed(2),
-      price < ema8,
-    );
-
-    check(
-      "RSI(3) above 70 (reversal setup in downtrend)",
-      "> 70",
-      rsi3.toFixed(2),
-      rsi3 > 70,
-    );
-
-    const distFromVWAP = Math.abs((price - vwap) / vwap) * 100;
-    check(
-      "Price within 1.5% of VWAP (not overextended)",
-      "< 1.5%",
-      `${distFromVWAP.toFixed(2)}%`,
-      distFromVWAP < 1.5,
+      "Candlestick confirmation at retest",
+      "Bearish engulfing or pin bar",
+      candleSignal.type,
+      candleSignal.bearish
     );
   } else {
-    console.log("  Bias: NEUTRAL — no clear direction. No trade.\n");
-    results.push({
-      label: "Market bias",
-      required: "Bullish or bearish",
-      actual: "Neutral",
-      pass: false,
-    });
+    console.log("  Bias: NEUTRAL — ranging market. No trade.\n");
+    results.push({ label: "Market structure", required: "HH/HL or LH/LL", actual: structure.reason, pass: false });
   }
 
   const allPass = results.every((r) => r.pass);
-  return { results, allPass };
+  return { results, allPass, bias: structure.bias };
 }
 
-// ─── Trade Limits ────────────────────────────────────────────────────────────
+// ─── Trade Limits ─────────────────────────────────────────────────────────────
 
 function checkTradeLimits(log) {
   const todayCount = countTodaysTrades(log);
@@ -286,37 +332,70 @@ function checkTradeLimits(log) {
   console.log("\n── Trade Limits ─────────────────────────────────────────\n");
 
   if (todayCount >= CONFIG.maxTradesPerDay) {
-    console.log(
-      `🚫 Max trades per day reached: ${todayCount}/${CONFIG.maxTradesPerDay}`,
-    );
+    console.log(`🚫 Max trades per day reached: ${todayCount}/${CONFIG.maxTradesPerDay}`);
     return false;
   }
 
-  console.log(
-    `✅ Trades today: ${todayCount}/${CONFIG.maxTradesPerDay} — within limit`,
-  );
+  console.log(`✅ Trades today: ${todayCount}/${CONFIG.maxTradesPerDay} — within limit`);
 
-  const tradeSize = Math.min(
-    CONFIG.portfolioValue * 0.01,
-    CONFIG.maxTradeSizeUSD,
-  );
-
-  if (tradeSize > CONFIG.maxTradeSizeUSD) {
-    console.log(
-      `🚫 Trade size $${tradeSize.toFixed(2)} exceeds max $${CONFIG.maxTradeSizeUSD}`,
-    );
-    return false;
-  }
-
-  console.log(
-    `✅ Trade size: $${tradeSize.toFixed(2)} — within max $${CONFIG.maxTradeSizeUSD}`,
-  );
+  const tradeSize = Math.min(CONFIG.portfolioValue * 0.01, CONFIG.maxTradeSizeUSD);
+  console.log(`✅ Trade size: $${tradeSize.toFixed(2)} — within max $${CONFIG.maxTradeSizeUSD}`);
 
   return true;
 }
 
-// ─── BitGet Execution ────────────────────────────────────────────────────────
+// ─── Order Execution ──────────────────────────────────────────────────────────
 
+async function placeOrder(symbol, side, sizeUSD, price) {
+  if (CONFIG.marketType === "forex") {
+    return placeOandaOrder(symbol, side, sizeUSD, price);
+  }
+  if (CONFIG.exchange === "bybit") {
+    return placeBybitOrder(symbol, side, sizeUSD);
+  }
+  if (CONFIG.exchange === "binance") {
+    return placeBinanceOrder(symbol, side, sizeUSD, price);
+  }
+  return placeBitGetOrder(symbol, side, sizeUSD, price);
+}
+
+// Bybit V5 API — spot market order by quote currency (USD amount)
+async function placeBybitOrder(symbol, side, sizeUSD) {
+  const timestamp = Date.now().toString();
+  const recvWindow = "5000";
+  const body = JSON.stringify({
+    category: "spot",
+    symbol,
+    side: side === "buy" ? "Buy" : "Sell",
+    orderType: "Market",
+    qty: sizeUSD.toFixed(2),
+    marketUnit: "quoteCoin",
+  });
+  const signStr = timestamp + CONFIG.bybit.apiKey + recvWindow + body;
+  const signature = crypto
+    .createHmac("sha256", CONFIG.bybit.secretKey)
+    .update(signStr)
+    .digest("hex");
+
+  const res = await fetch("https://api.bybit.com/v5/order/create", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-BAPI-API-KEY": CONFIG.bybit.apiKey,
+      "X-BAPI-SIGN": signature,
+      "X-BAPI-SIGN-TYPE": "2",
+      "X-BAPI-TIMESTAMP": timestamp,
+      "X-BAPI-RECV-WINDOW": recvWindow,
+    },
+    body,
+  });
+
+  const data = await res.json();
+  if (data.retCode !== 0) throw new Error(`Bybit order failed: ${data.retMsg}`);
+  return { orderId: data.result.orderId };
+}
+
+// BitGet
 function signBitGet(timestamp, method, path, body = "") {
   const message = `${timestamp}${method}${path}${body}`;
   return crypto
@@ -360,62 +439,113 @@ async function placeBitGetOrder(symbol, side, sizeUSD, price) {
   });
 
   const data = await res.json();
-  if (data.code !== "00000") {
-    throw new Error(`BitGet order failed: ${data.msg}`);
-  }
-
-  return data.data;
+  if (data.code !== "00000") throw new Error(`BitGet order failed: ${data.msg}`);
+  return { orderId: data.data.orderId };
 }
 
-// ─── Tax CSV Logging ─────────────────────────────────────────────────────────
+// Binance
+function signBinance(queryString) {
+  return crypto
+    .createHmac("sha256", CONFIG.binance.secretKey)
+    .update(queryString)
+    .digest("hex");
+}
+
+async function placeBinanceOrder(symbol, side, sizeUSD, price) {
+  const timestamp = Date.now();
+  const params = new URLSearchParams({
+    symbol,
+    side: side.toUpperCase(),
+    type: "MARKET",
+    quoteOrderQty: sizeUSD.toFixed(2),
+    timestamp: timestamp.toString(),
+    recvWindow: "5000",
+  });
+  const signature = signBinance(params.toString());
+  params.append("signature", signature);
+
+  const res = await fetch(`https://api.binance.com/api/v3/order?${params}`, {
+    method: "POST",
+    headers: { "X-MBX-APIKEY": CONFIG.binance.apiKey },
+  });
+
+  const data = await res.json();
+  if (!data.orderId) throw new Error(`Binance order failed: ${data.msg}`);
+  return { orderId: data.orderId.toString() };
+}
+
+// OANDA
+async function placeOandaOrder(instrument, side, sizeUSD, price) {
+  const baseUrl = CONFIG.oanda.practice
+    ? "https://api-fxpractice.oanda.com"
+    : "https://api-fxtrade.oanda.com";
+
+  // Units: for EUR_USD at 1.08, spending $50 = ~46 units of EUR
+  const units = Math.floor(sizeUSD / price);
+  const signedUnits = side === "buy" ? units : -units;
+
+  const body = JSON.stringify({
+    order: {
+      type: "MARKET",
+      instrument,
+      units: signedUnits.toString(),
+      timeInForce: "FOK",
+      positionFill: "DEFAULT",
+    },
+  });
+
+  const res = await fetch(
+    `${baseUrl}/v3/accounts/${CONFIG.oanda.accountId}/orders`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${CONFIG.oanda.apiKey}`,
+      },
+      body,
+    }
+  );
+
+  const data = await res.json();
+  if (data.orderFillTransaction) {
+    return { orderId: data.orderFillTransaction.id };
+  }
+  throw new Error(`OANDA order failed: ${JSON.stringify(data.errorMessage || data)}`);
+}
+
+// ─── Tax CSV Logging ──────────────────────────────────────────────────────────
 
 const CSV_FILE = "trades.csv";
+const CSV_HEADERS = [
+  "Date", "Time (UTC)", "Exchange", "Market", "Symbol", "Side",
+  "Quantity", "Price", "Total USD", "Fee (est.)", "Net Amount",
+  "Order ID", "Mode", "Notes",
+].join(",");
 
-// Always ensure trades.csv exists with headers — open it in Excel/Sheets any time
 function initCsv() {
   if (!existsSync(CSV_FILE)) {
-    const funnyNote = `,,,,,,,,,,,"NOTE","Hey, if you're at this stage of the video, you must be enjoying it... perhaps you could hit subscribe now? :)"`;
+    const funnyNote = `,,,,,,,,,,,,,"NOTE","Hey, if you're at this stage of the video, you must be enjoying it... perhaps you could hit subscribe now? :)"`;
     writeFileSync(CSV_FILE, CSV_HEADERS + "\n" + funnyNote + "\n");
-    console.log(
-      `📄 Created ${CSV_FILE} — open in Google Sheets or Excel to track trades.`,
-    );
+    console.log(`📄 Created ${CSV_FILE} — open in Google Sheets or Excel to track trades.`);
   }
 }
-const CSV_HEADERS = [
-  "Date",
-  "Time (UTC)",
-  "Exchange",
-  "Symbol",
-  "Side",
-  "Quantity",
-  "Price",
-  "Total USD",
-  "Fee (est.)",
-  "Net Amount",
-  "Order ID",
-  "Mode",
-  "Notes",
-].join(",");
+
+function exchangeName() {
+  if (CONFIG.marketType === "forex") return "OANDA";
+  if (CONFIG.exchange === "bybit") return "Bybit";
+  if (CONFIG.exchange === "binance") return "Binance";
+  return "BitGet";
+}
 
 function writeTradeCsv(logEntry) {
   const now = new Date(logEntry.timestamp);
   const date = now.toISOString().slice(0, 10);
   const time = now.toISOString().slice(11, 19);
 
-  let side = "";
-  let quantity = "";
-  let totalUSD = "";
-  let fee = "";
-  let netAmount = "";
-  let orderId = "";
-  let mode = "";
-  let notes = "";
+  let side = "", quantity = "", totalUSD = "", fee = "", netAmount = "", orderId = "", mode = "", notes = "";
 
   if (!logEntry.allPass) {
-    const failed = logEntry.conditions
-      .filter((c) => !c.pass)
-      .map((c) => c.label)
-      .join("; ");
+    const failed = logEntry.conditions.filter((c) => !c.pass).map((c) => c.label).join("; ");
     mode = "BLOCKED";
     orderId = "BLOCKED";
     notes = `Failed: ${failed}`;
@@ -440,25 +570,12 @@ function writeTradeCsv(logEntry) {
   }
 
   const row = [
-    date,
-    time,
-    "BitGet",
-    logEntry.symbol,
-    side,
-    quantity,
-    logEntry.price.toFixed(2),
-    totalUSD,
-    fee,
-    netAmount,
-    orderId,
-    mode,
-    `"${notes}"`,
+    date, time, exchangeName(), CONFIG.marketType.toUpperCase(),
+    logEntry.symbol, side, quantity, logEntry.price.toFixed(5),
+    totalUSD, fee, netAmount, orderId, mode, `"${notes}"`,
   ].join(",");
 
-  if (!existsSync(CSV_FILE)) {
-    writeFileSync(CSV_FILE, CSV_HEADERS + "\n");
-  }
-
+  if (!existsSync(CSV_FILE)) writeFileSync(CSV_FILE, CSV_HEADERS + "\n");
   appendFileSync(CSV_FILE, row + "\n");
   console.log(`Tax record saved → ${CSV_FILE}`);
 }
@@ -473,12 +590,11 @@ function generateTaxSummary() {
   const lines = readFileSync(CSV_FILE, "utf8").trim().split("\n");
   const rows = lines.slice(1).map((l) => l.split(","));
 
-  const live = rows.filter((r) => r[11] === "LIVE");
-  const paper = rows.filter((r) => r[11] === "PAPER");
-  const blocked = rows.filter((r) => r[11] === "BLOCKED");
-
-  const totalVolume = live.reduce((sum, r) => sum + parseFloat(r[7] || 0), 0);
-  const totalFees = live.reduce((sum, r) => sum + parseFloat(r[8] || 0), 0);
+  const live = rows.filter((r) => r[12] === "LIVE");
+  const paper = rows.filter((r) => r[12] === "PAPER");
+  const blocked = rows.filter((r) => r[12] === "BLOCKED");
+  const totalVolume = live.reduce((sum, r) => sum + parseFloat(r[8] || 0), 0);
+  const totalFees = live.reduce((sum, r) => sum + parseFloat(r[9] || 0), 0);
 
   console.log("\n── Tax Summary ──────────────────────────────────────────\n");
   console.log(`  Total decisions logged : ${rows.length}`);
@@ -491,25 +607,23 @@ function generateTaxSummary() {
   console.log("─────────────────────────────────────────────────────────\n");
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function run() {
   checkOnboarding();
   initCsv();
+
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  Claude Trading Bot");
   console.log(`  ${new Date().toISOString()}`);
-  console.log(
-    `  Mode: ${CONFIG.paperTrading ? "📋 PAPER TRADING" : "🔴 LIVE TRADING"}`,
-  );
+  console.log(`  Market : ${CONFIG.marketType.toUpperCase()} | Exchange: ${exchangeName()}`);
+  console.log(`  Mode   : ${CONFIG.paperTrading ? "📋 PAPER TRADING" : "🔴 LIVE TRADING"}`);
   console.log("═══════════════════════════════════════════════════════════");
 
-  // Load strategy
   const rules = JSON.parse(readFileSync("rules.json", "utf8"));
-  console.log(`\nStrategy: ${rules.strategy.name}`);
-  console.log(`Symbol: ${CONFIG.symbol} | Timeframe: ${CONFIG.timeframe}`);
+  console.log(`\nStrategy : ${rules.strategy.name}`);
+  console.log(`Symbol   : ${CONFIG.symbol} | Timeframe: ${CONFIG.timeframe}`);
 
-  // Load log and check daily limits
   const log = loadLog();
   const withinLimits = checkTradeLimits(log);
   if (!withinLimits) {
@@ -517,45 +631,42 @@ async function run() {
     return;
   }
 
-  // Fetch candle data — need enough for EMA(8) + full session for VWAP
-  console.log("\n── Fetching market data from Binance ───────────────────\n");
-  const candles = await fetchCandles(CONFIG.symbol, CONFIG.timeframe, 500);
+  console.log(`\n── Fetching market data (${CONFIG.marketType === "forex" ? "OANDA" : "Binance"}) ──────────────\n`);
+  const candles = await fetchCandles(CONFIG.symbol, CONFIG.timeframe, 200);
   const closes = candles.map((c) => c.close);
   const price = closes[closes.length - 1];
-  console.log(`  Current price: $${price.toFixed(2)}`);
+  console.log(`  Current price: ${price.toFixed(2)}`);
 
-  // Calculate indicators
-  const ema8 = calcEMA(closes, 8);
-  const vwap = calcVWAP(candles);
-  const rsi3 = calcRSI(closes, 3);
-
-  console.log(`  EMA(8):  $${ema8.toFixed(2)}`);
-  console.log(`  VWAP:    $${vwap ? vwap.toFixed(2) : "N/A"}`);
-  console.log(`  RSI(3):  ${rsi3 ? rsi3.toFixed(2) : "N/A"}`);
-
-  if (!vwap || !rsi3) {
-    console.log("\n⚠️  Not enough data to calculate indicators. Exiting.");
+  if (candles.length < 50) {
+    console.log("\n⚠️  Not enough candles to calculate EMA(50). Need at least 50. Exiting.");
     return;
   }
 
-  // Run safety check
-  const { results, allPass } = runSafetyCheck(price, ema8, vwap, rsi3, rules);
+  const ema50 = calcEMA(closes, 50);
+  const { swingHighs, swingLows } = detectSwingPoints(candles);
+  const structure = analyzeMarketStructure(swingHighs, swingLows);
+  const candleSignal = detectCandleSignal(candles[candles.length - 1], candles[candles.length - 2]);
+  const breakRetest = detectBreakAndRetest(candles, structure);
 
-  // Calculate position size
-  const tradeSize = Math.min(
-    CONFIG.portfolioValue * 0.01,
-    CONFIG.maxTradeSizeUSD,
-  );
+  console.log(`  EMA(50)    : ${ema50.toFixed(2)}`);
+  console.log(`  Structure  : ${structure.bias} — ${structure.reason}`);
+  console.log(`  Candle     : ${candleSignal.type}`);
+  console.log(`  Break+Retest: ${breakRetest.detected ? `Yes — ${breakRetest.level?.toFixed(2)}` : "No"}`);
 
-  // Decision
+  const { results, allPass, bias } = runSafetyCheck(price, ema50, structure, candleSignal, breakRetest);
+
+  const tradeSize = Math.min(CONFIG.portfolioValue * 0.01, CONFIG.maxTradeSizeUSD);
+
   console.log("\n── Decision ─────────────────────────────────────────────\n");
 
   const logEntry = {
     timestamp: new Date().toISOString(),
     symbol: CONFIG.symbol,
     timeframe: CONFIG.timeframe,
+    marketType: CONFIG.marketType,
+    exchange: exchangeName(),
     price,
-    indicators: { ema8, vwap, rsi3 },
+    indicators: { ema50, structure: structure.bias, structureReason: structure.reason, candleSignal: candleSignal.type, breakRetest: breakRetest.detected },
     conditions: results,
     allPass,
     tradeSize,
@@ -578,23 +689,14 @@ async function run() {
     console.log(`✅ ALL CONDITIONS MET`);
 
     if (CONFIG.paperTrading) {
-      console.log(
-        `\n📋 PAPER TRADE — would buy ${CONFIG.symbol} ~$${tradeSize.toFixed(2)} at market`,
-      );
+      console.log(`\n📋 PAPER TRADE — would buy ${CONFIG.symbol} ~$${tradeSize.toFixed(2)} at market`);
       console.log(`   (Set PAPER_TRADING=false in .env to place real orders)`);
       logEntry.orderPlaced = true;
       logEntry.orderId = `PAPER-${Date.now()}`;
     } else {
-      console.log(
-        `\n🔴 PLACING LIVE ORDER — $${tradeSize.toFixed(2)} BUY ${CONFIG.symbol}`,
-      );
+      console.log(`\n🔴 PLACING LIVE ORDER — $${tradeSize.toFixed(2)} BUY ${CONFIG.symbol} on ${exchangeName()}`);
       try {
-        const order = await placeBitGetOrder(
-          CONFIG.symbol,
-          "buy",
-          tradeSize,
-          price,
-        );
+        const order = await placeOrder(CONFIG.symbol, "buy", tradeSize, price);
         logEntry.orderPlaced = true;
         logEntry.orderId = order.orderId;
         console.log(`✅ ORDER PLACED — ${order.orderId}`);
@@ -605,12 +707,9 @@ async function run() {
     }
   }
 
-  // Save decision log
   log.trades.push(logEntry);
   saveLog(log);
   console.log(`\nDecision log saved → ${LOG_FILE}`);
-
-  // Write tax CSV row for every run (executed, paper, or blocked)
   writeTradeCsv(logEntry);
 
   console.log("═══════════════════════════════════════════════════════════\n");

@@ -1,0 +1,49 @@
+name: Trading Bot
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'   # Runs every 4 hours (matches TIMEFRAME=4H)
+  workflow_dispatch:          # Also lets you trigger it manually from GitHub
+
+permissions:
+  contents: write             # Needed to commit trade logs back to the repo
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run trading bot
+        env:
+          MARKET_TYPE: crypto
+          EXCHANGE: bybit
+          BYBIT_API_KEY: ${{ secrets.BYBIT_API_KEY }}
+          BYBIT_SECRET_KEY: ${{ secrets.BYBIT_SECRET_KEY }}
+          TRADE_MODE: spot
+          SYMBOL: BTCUSDT
+          TIMEFRAME: 4H
+          PAPER_TRADING: true
+          PORTFOLIO_VALUE_USD: 1000
+          MAX_TRADE_SIZE_USD: 50
+          MAX_TRADES_PER_DAY: 3
+        run: node bot.js
+
+      - name: Save trade log to repo
+        run: |
+          git config user.name "Trading Bot"
+          git config user.email "bot@github-actions"
+          git add trades.csv
+          git diff --staged --quiet || git commit -m "bot: log update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push

@@ -1,50 +1,66 @@
 {
   "watchlist": ["BTCUSDT"],
-  "default_timeframe": "1m",
-
+  "default_timeframe": "4H",
   "strategy": {
-    "name": "VWAP + RSI(3) + EMA(8) Scalping Strategy",
-    "sources": ["Lewis Jackson"],
-    "description": "Three indicators, each doing a different job. EMA(8) for trend direction, VWAP for session bias, RSI(3) for entry timing. All three must align before a trade fires."
+    "name": "@jacktradessss Price Action Strategy",
+    "sources": ["@jacktradessss — YouTube: 'The Trading Industry Will Hate Me for This FREE 10+ Hour Course' (youtu.be/grw58BIzotU)"]
   },
-
   "indicators": {
-    "ema_8": "Trend direction. Price above EMA(8) = bullish momentum. Below = bearish.",
-    "vwap": "Session bias. Price above VWAP = buyers in control. Below = sellers. Resets at midnight UTC.",
-    "rsi_3": "Entry timing. RSI on 3 candles only — extremely sensitive. Below 30 in an uptrend = snap-back setup. Above 70 in a downtrend = reversal likely."
+    "ema_50": "Trend confluence only — price above EMA50 = bullish bias, below = bearish bias. Secondary confirmation, not a signal itself.",
+    "price_action": "Primary signal — Higher Highs / Higher Lows (bullish) or Lower Highs / Lower Lows (bearish) define market structure",
+    "order_blocks": "Areas where price previously reversed sharply — used as entry zones on retest",
+    "support_resistance": "Historical swing highs/lows used as S&R zones for entries and take profit targets"
   },
-
   "bias_criteria": {
-    "bullish": ["Price is above VWAP", "Price is above EMA(8)"],
-    "bearish": ["Price is below VWAP", "Price is below EMA(8)"]
-  },
-
-  "entry_rules": {
-    "long": [
-      "Price is above VWAP — buyers in control for the session",
-      "Price is above EMA(8) — uptrend confirmed",
-      "RSI(3) has dropped below 30 — short-term pullback in an uptrend, snap-back likely"
+    "bullish": [
+      "Price is making Higher Highs (HH) and Higher Lows (HL) on the higher timeframe",
+      "Price is trading above the 50 EMA on the higher timeframe",
+      "Most recent swing low held — structure has not broken down"
     ],
-    "short": [
-      "Price is below VWAP — sellers in control",
-      "Price is below EMA(8) — downtrend confirmed",
-      "RSI(3) has spiked above 70 — overbought in a downtrend, reversal likely"
+    "bearish": [
+      "Price is making Lower Highs (LH) and Lower Lows (LL) on the higher timeframe",
+      "Price is trading below the 50 EMA on the higher timeframe",
+      "Most recent swing high was rejected — structure has not broken up"
+    ],
+    "neutral": [
+      "Price is ranging — no clear HH/HL or LH/LL pattern",
+      "Price is chopping around the 50 EMA with no direction",
+      "Structure is ambiguous — do not trade"
     ]
   },
-
+  "entry_rules": {
+    "long": [
+      "Step 1: Confirm bullish market structure on higher timeframe (HH + HL pattern)",
+      "Step 2: Identify a key order block or support zone that price is approaching",
+      "Step 3: Wait for price to break through a recent swing high (break of structure to upside)",
+      "Step 4: Wait for price to pull back and retest the broken level or order block",
+      "Step 5: Confirm with a candlestick signal at the retest — bullish engulfing, pin bar, or rejection wick",
+      "Step 6: Enter at the close of the confirmation candle"
+    ],
+    "short": [
+      "Step 1: Confirm bearish market structure on higher timeframe (LH + LL pattern)",
+      "Step 2: Identify a key order block or resistance zone that price is approaching",
+      "Step 3: Wait for price to break through a recent swing low (break of structure to downside)",
+      "Step 4: Wait for price to pull back and retest the broken level or order block",
+      "Step 5: Confirm with a candlestick signal at the retest — bearish engulfing, pin bar, or rejection wick",
+      "Step 6: Enter at the close of the confirmation candle"
+    ]
+  },
   "exit_rules": [
-    "Exit when RSI(3) crosses back above 50 (for longs) or below 50 (for shorts)",
-    "Hard stop: 0.3% below entry for longs, 0.3% above entry for shorts",
-    "Take profit at next VWAP touch or EMA(8) cross"
+    "Take profit at the next significant support/resistance level or swing high/low",
+    "Minimum risk:reward of 1:2 before entering any trade — if target does not exist, skip the trade",
+    "Preferred risk:reward is 1:3 or 1:4",
+    "Exit immediately if price breaks back through the entry structure (trade invalidated)",
+    "Move stop loss to breakeven once price reaches 1:1 risk:reward"
   ],
-
   "risk_rules": [
-    "Risk maximum 1% of portfolio per trade",
-    "Maximum trade size capped by MAX_TRADE_SIZE_USD in .env",
-    "Maximum trades per day capped by MAX_TRADES_PER_DAY in .env",
-    "Do not trade if price is more than 1.5% away from VWAP — overextended",
-    "Paper trade first — validate this strategy on your specific asset before going live"
+    "Risk 1-2% of portfolio per trade maximum",
+    "Stop loss placed beyond the order block or structure level that invalidates the trade",
+    "Do not move stop loss to a worse position — only trail it to breakeven or better",
+    "Maximum 3 trades per day",
+    "Do not trade during high-impact news events — wait for the candle to close after news",
+    "Preferred trading sessions: Pre-London (1am EST) and London session (3am-12pm EST)",
+    "Never trade against the higher timeframe trend — if HTF is bearish, only take shorts"
   ],
-
-  "notes": "Scalping strategy — designed for 1m to 5m timeframes. RSI(3) is intentionally fast and sensitive. Do not apply to higher timeframes."
+  "notes": "Jack emphasises patience above all else. The setup must be clean — if you have to convince yourself it qualifies, it does not qualify. Only trade the highest-probability breaks and retests where structure, order block, and candlestick confirmation all align. EMA is secondary confluence, not a trigger."
 }
