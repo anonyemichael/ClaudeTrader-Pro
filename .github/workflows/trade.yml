@@ -29,7 +29,7 @@ jobs:
         env:
           MARKET_TYPE: crypto
           EXCHANGE: bybit
-          BYBIT_TESTNET: false
+          BYBIT_TESTNET: true
           BYBIT_API_KEY: ${{ secrets.BYBIT_API_KEY }}
           BYBIT_SECRET_KEY: ${{ secrets.BYBIT_SECRET_KEY }}
           BYBIT_TESTNET_API_KEY: ${{ secrets.BYBIT_TESTNET_API_KEY }}
@@ -37,7 +37,7 @@ jobs:
           TRADE_MODE: spot
           SYMBOL: BTCUSDT
           TIMEFRAME: 4H
-          PAPER_TRADING: true
+          PAPER_TRADING: false
           PORTFOLIO_VALUE_USD: 1000
           MAX_TRADE_SIZE_USD: 50
           MAX_TRADES_PER_DAY: 3

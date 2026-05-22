@@ -2,4 +2,5 @@ Date,Time (UTC),Exchange,Symbol,Side,Quantity,Price,Total USD,Fee (est.),Net Amo
 ,,,,,,,,,,,"NOTE","Hey, if you're at this stage of the video, you must be enjoying it... perhaps you could hit subscribe now? :)"
 2026-05-22,14:22:43,BitGet,CRYPTO,BTCUSDT,,,76882.39000,,,,BLOCKED,BLOCKED,"Failed: Price above EMA(50) — trend confluence; Break and retest of key swing level; Candlestick confirmation at retest"
 2026-05-22,15:05:50,Bybit,CRYPTO,BTCUSDT,,,76912.97000,,,,BLOCKED,BLOCKED,"Failed: Price above EMA(50) — trend confluence; Break and retest of key swing level; Candlestick confirmation at retest"
-2026-05-22,15:20:53,Bybit,CRYPTO,BTCUSDT,,,76837.50000,,,,BLOCKED,BLOCKED,"Failed: Price above EMA(50) — trend confluence; Break and retest of key swing level; Candlestick confirmation at retest"
+2026-05-22,15:19:08,Bybit,CRYPTO,BTCUSDT,,,76823.80000,,,,BLOCKED,BLOCKED,"Failed: Price above EMA(50) — trend confluence; Break and retest of key swing level; Candlestick confirmation at retest"
+2026-05-22,15:35:34,Bybit,CRYPTO,BTCUSDT,,,76964.80000,,,,BLOCKED,BLOCKED,"Failed: Price above EMA(50) — trend confluence; Break and retest of key swing level; Candlestick confirmation at retest"
