@@ -25,8 +25,16 @@ const CONFIG = {
   paperTrading: process.env.PAPER_TRADING !== "false",
   tradeMode: process.env.TRADE_MODE || "spot",
   bybit: {
-    apiKey: process.env.BYBIT_API_KEY,
-    secretKey: process.env.BYBIT_SECRET_KEY,
+    testnet: process.env.BYBIT_TESTNET === "true",
+    apiKey: process.env.BYBIT_TESTNET === "true"
+      ? process.env.BYBIT_TESTNET_API_KEY
+      : process.env.BYBIT_API_KEY,
+    secretKey: process.env.BYBIT_TESTNET === "true"
+      ? process.env.BYBIT_TESTNET_SECRET_KEY
+      : process.env.BYBIT_SECRET_KEY,
+    baseUrl: process.env.BYBIT_TESTNET === "true"
+      ? "https://api-testnet.bybit.com"
+      : "https://api.bybit.com",
   },
   bitget: {
     apiKey: process.env.BITGET_API_KEY,
@@ -55,7 +63,9 @@ function checkOnboarding() {
   if (CONFIG.marketType === "forex") {
     required = ["OANDA_API_KEY", "OANDA_ACCOUNT_ID"];
   } else if (CONFIG.exchange === "bybit") {
-    required = ["BYBIT_API_KEY", "BYBIT_SECRET_KEY"];
+    required = CONFIG.bybit.testnet
+      ? ["BYBIT_TESTNET_API_KEY", "BYBIT_TESTNET_SECRET_KEY"]
+      : ["BYBIT_API_KEY", "BYBIT_SECRET_KEY"];
   } else if (CONFIG.exchange === "binance") {
     required = ["BINANCE_API_KEY", "BINANCE_SECRET_KEY"];
   } else {
@@ -401,7 +411,7 @@ async function placeBybitOrder(symbol, side, sizeUSD) {
     .update(signStr)
     .digest("hex");
 
-  const res = await fetch("https://api.bybit.com/v5/order/create", {
+  const res = await fetch(`${CONFIG.bybit.baseUrl}/v5/order/create`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -641,7 +651,8 @@ async function run() {
   console.log("  Claude Trading Bot");
   console.log(`  ${new Date().toISOString()}`);
   console.log(`  Market : ${CONFIG.marketType.toUpperCase()} | Exchange: ${exchangeName()}`);
-  console.log(`  Mode   : ${CONFIG.paperTrading ? "📋 PAPER TRADING" : "🔴 LIVE TRADING"}`);
+  const modeLabel = CONFIG.paperTrading ? "📋 PAPER TRADING" : CONFIG.bybit.testnet ? "🧪 TESTNET (real orders, fake money)" : "🔴 LIVE TRADING";
+  console.log(`  Mode   : ${modeLabel}`);
   console.log("═══════════════════════════════════════════════════════════");
 
   const rules = JSON.parse(readFileSync("rules.json", "utf8"));

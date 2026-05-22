@@ -29,8 +29,11 @@ jobs:
         env:
           MARKET_TYPE: crypto
           EXCHANGE: bybit
+          BYBIT_TESTNET: false
           BYBIT_API_KEY: ${{ secrets.BYBIT_API_KEY }}
           BYBIT_SECRET_KEY: ${{ secrets.BYBIT_SECRET_KEY }}
+          BYBIT_TESTNET_API_KEY: ${{ secrets.BYBIT_TESTNET_API_KEY }}
+          BYBIT_TESTNET_SECRET_KEY: ${{ secrets.BYBIT_TESTNET_SECRET_KEY }}
           TRADE_MODE: spot
           SYMBOL: BTCUSDT
           TIMEFRAME: 4H
