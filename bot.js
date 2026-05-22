@@ -96,11 +96,37 @@ function countTodaysTrades(log) {
 
 // ─── Market Data ──────────────────────────────────────────────────────────────
 
-async function fetchCandles(symbol, interval, limit = 500) {
+async function fetchCandles(symbol, interval, limit = 200) {
   if (CONFIG.marketType === "forex") {
     return fetchOandaCandles(symbol, interval, limit);
   }
+  if (CONFIG.exchange === "bybit") {
+    return fetchBybitCandles(symbol, interval, limit);
+  }
   return fetchBinanceCandles(symbol, interval, limit);
+}
+
+// Bybit public candle API — no auth needed, works from any region
+async function fetchBybitCandles(symbol, interval, limit) {
+  const intervalMap = {
+    "1m": "1", "3m": "3", "5m": "5", "15m": "15", "30m": "30",
+    "1H": "60", "4H": "240", "1D": "D", "1W": "W",
+  };
+  const bybitInterval = intervalMap[interval] || "240";
+  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Bybit candle API error: ${res.status}`);
+  const data = await res.json();
+  if (data.retCode !== 0) throw new Error(`Bybit candle error: ${data.retMsg}`);
+  // Bybit returns newest first — reverse to chronological order
+  return data.result.list.reverse().map((k) => ({
+    time: parseInt(k[0]),
+    open: parseFloat(k[1]),
+    high: parseFloat(k[2]),
+    low: parseFloat(k[3]),
+    close: parseFloat(k[4]),
+    volume: parseFloat(k[5]),
+  }));
 }
 
 // Binance public API — free, no auth needed
@@ -626,7 +652,8 @@ async function run() {
     return;
   }
 
-  console.log(`\n── Fetching market data (${CONFIG.marketType === "forex" ? "OANDA" : "Binance"}) ──────────────\n`);
+  const dataSource = CONFIG.marketType === "forex" ? "OANDA" : CONFIG.exchange === "bybit" ? "Bybit" : "Binance";
+  console.log(`\n── Fetching market data (${dataSource}) ──────────────\n`);
   const candles = await fetchCandles(CONFIG.symbol, CONFIG.timeframe, 200);
   const closes = candles.map((c) => c.close);
   const price = closes[closes.length - 1];
