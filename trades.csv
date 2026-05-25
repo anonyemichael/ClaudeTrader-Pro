@@ -21,3 +21,4 @@ Date,Time (UTC),Exchange,Symbol,Side,Quantity,Price,Total USD,Fee (est.),Net Amo
 2026-05-24,20:46:56,Bybit,CRYPTO,BTCUSDT,,,76720.50000,,,,BLOCKED,BLOCKED,"Failed: Candlestick confirmation at retest"
 2026-05-25,02:49:08,Bybit,CRYPTO,BTCUSDT,,,77177.30000,,,,BLOCKED,BLOCKED,"Failed: Break and retest of key swing level"
 2026-05-25,08:14:28,Bybit,CRYPTO,BTCUSDT,,,77298.40000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
+2026-05-25,14:42:23,Bybit,CRYPTO,BTCUSDT,,,77561.20000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
