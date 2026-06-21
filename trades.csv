@@ -162,3 +162,4 @@ Date,Time (UTC),Exchange,Symbol,Side,Quantity,Price,Total USD,Fee (est.),Net Amo
 2026-06-21,08:23:09,Bybit,CRYPTO,BTCUSDT,,,64075.80000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
 2026-06-21,13:54:41,Bybit,CRYPTO,BTCUSDT,,,64083.50000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
 2026-06-21,17:22:34,Bybit,CRYPTO,BTCUSDT,,,64153.30000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
+2026-06-21,21:07:52,Bybit,CRYPTO,BTCUSDT,,,63781.70000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
