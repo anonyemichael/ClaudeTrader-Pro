@@ -186,3 +186,4 @@ Date,Time (UTC),Exchange,Symbol,Side,Quantity,Price,Total USD,Fee (est.),Net Amo
 2026-06-25,18:05:25,Bybit,CRYPTO,BTCUSDT,,,59634.30000,,,,BLOCKED,BLOCKED,"Failed: Break and retest of key swing level; Candlestick confirmation at retest"
 2026-06-25,21:25:59,Bybit,CRYPTO,BTCUSDT,,,59682.90000,,,,BLOCKED,BLOCKED,"Failed: Break and retest of key swing level; Candlestick confirmation at retest"
 2026-06-26,02:44:01,Bybit,CRYPTO,BTCUSDT,BUY,0.000170,58886.20000,10.00,0.0100,9.99,,LIVE,"Error: Expected property name or '}' in JSON at position 7"
+2026-06-26,07:43:57,Bybit,CRYPTO,BTCUSDT,,,60721.10000,,,,BLOCKED,BLOCKED,"Failed: Break and retest of key swing level; Candlestick confirmation at retest"
