@@ -353,3 +353,4 @@ Date,Time (UTC),Exchange,Symbol,Side,Quantity,Price,Total USD,Fee (est.),Net Amo
 2026-07-24,02:03:14,Bybit,CRYPTO,BTCUSDT,BUY,0.000154,65096.30000,10.00,0.0100,9.99,,LIVE,"Error: Expected property name or '}' in JSON at position 7"
 2026-07-24,06:20:34,Bybit,CRYPTO,BTCUSDT,,,65499.50000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
 2026-07-24,10:10:28,Bybit,CRYPTO,BTCUSDT,,,65066.50000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
+2026-07-24,13:23:16,Bybit,CRYPTO,BTCUSDT,,,64450.00000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
