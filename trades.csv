@@ -417,3 +417,4 @@ Date,Time (UTC),Exchange,Symbol,Side,Quantity,Price,Total USD,Fee (est.),Net Amo
 2026-08-03,17:44:53,Bybit,CRYPTO,BTCUSDT,,,63906.10000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
 2026-08-03,20:56:55,Bybit,CRYPTO,BTCUSDT,,,63803.00000,,,,BLOCKED,BLOCKED,"Failed: Candlestick confirmation at retest"
 2026-08-04,01:54:07,Bybit,CRYPTO,BTCUSDT,BUY,0.000157,63865.00000,10.00,0.0100,9.99,,LIVE,"Error: Expected property name or '}' in JSON at position 7"
+2026-08-04,06:21:36,Bybit,CRYPTO,BTCUSDT,,,63863.00000,,,,BLOCKED,BLOCKED,"Failed: Candlestick confirmation at retest"
