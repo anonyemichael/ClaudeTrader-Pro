@@ -472,3 +472,4 @@ Date,Time (UTC),Exchange,Symbol,Side,Quantity,Price,Total USD,Fee (est.),Net Amo
 2026-08-13,05:29:04,Bybit,CRYPTO,BTCUSDT,,,63931.00000,,,,BLOCKED,BLOCKED,"Failed: Price above EMA(50) — trend confluence; Break and retest of key swing level; Candlestick confirmation at retest"
 2026-08-13,09:04:57,Bybit,CRYPTO,BTCUSDT,,,63734.10000,,,,BLOCKED,BLOCKED,"Failed: Price above EMA(50) — trend confluence; Break and retest of key swing level; Candlestick confirmation at retest"
 2026-08-13,12:54:16,Bybit,CRYPTO,BTCUSDT,,,63636.70000,,,,BLOCKED,BLOCKED,"Failed: Price above EMA(50) — trend confluence; Break and retest of key swing level; Candlestick confirmation at retest"
+2026-08-13,16:49:04,Bybit,CRYPTO,BTCUSDT,,,63126.50000,,,,BLOCKED,BLOCKED,"Failed: Market structure"
