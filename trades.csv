@@ -725,3 +725,4 @@ Date,Time (UTC),Exchange,Symbol,Side,Quantity,Price,Total USD,Fee (est.),Net Amo
 2026-10-04,16:16:35,Bybit,CRYPTO,BTCUSDT,,,85293.90000,,,,BLOCKED,BLOCKED,"Failed: Break and retest of key swing level"
 2026-10-04,22:39:09,Bybit,CRYPTO,BTCUSDT,,,86398.80000,,,,BLOCKED,BLOCKED,"Failed: Break and retest of key swing level; Candlestick confirmation at retest"
 2026-10-05,03:28:26,Bybit,CRYPTO,BTCUSDT,,,86472.20000,,,,BLOCKED,BLOCKED,"Failed: Break and retest of key swing level; Candlestick confirmation at retest"
+2026-10-05,11:04:14,Bybit,CRYPTO,BTCUSDT,,,86016.30000,,,,BLOCKED,BLOCKED,"Failed: Candlestick confirmation at retest"
